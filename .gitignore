@@ -8,55 +8,55 @@ datasets/
 *.tar
 *.gz
 
-# =========================
-# MODELS (FILE NẶNG)
-# =========================
-*.pkl
-*.h5
-*.pt
-*.joblib
-*.onnx
+# # =========================
+# # MODELS (FILE NẶNG)
+# # =========================
+# *.pkl
+# *.h5
+# *.pt
+# *.joblib
+# *.onnx
 
-# =========================
-# PYTHON CACHE
-# =========================
-__pycache__/
-*.pyc
-*.pyo
+# # =========================
+# # PYTHON CACHE
+# # =========================
+# __pycache__/
+# *.pyc
+# *.pyo
 
-# =========================
-# OUTPUTS (GIỮ ẢNH DEMO)
-# =========================
-outputs/
-!outputs/.gitkeep
-!outputs/*.png
-!outputs/*.jpg
-!outputs/*.jpeg
+# # =========================
+# # OUTPUTS (GIỮ ẢNH DEMO)
+# # =========================
+# outputs/
+# !outputs/.gitkeep
+# !outputs/*.png
+# !outputs/*.jpg
+# !outputs/*.jpeg
 
-# =========================
-# JUPYTER
-# =========================
-.ipynb_checkpoints/
+# # =========================
+# # JUPYTER
+# # =========================
+# .ipynb_checkpoints/
 
-# =========================
-# SYSTEM FILES
-# =========================
-.DS_Store
-Thumbs.db
+# # =========================
+# # SYSTEM FILES
+# # =========================
+# .DS_Store
+# Thumbs.db
 
-# =========================
-# IDE / EDITOR
-# =========================
-.vscode/
-.idea/
+# # =========================
+# # IDE / EDITOR
+# # =========================
+# .vscode/
+# .idea/
 
-# =========================
-# LOG / TEMP FILES
-# =========================
-*.log
-*.tmp
+# # =========================
+# # LOG / TEMP FILES
+# # =========================
+# *.log
+# *.tmp
 
-# =========================
-# OPTIONAL (comment nếu cần push notebook)
-# =========================
-# *.ipynb
+# # =========================
+# # OPTIONAL (comment nếu cần push notebook)
+# # =========================
+# # *.ipynb
