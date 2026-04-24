@@ -1,17 +1,12 @@
 # =========================
-# DATA (KHÔNG PUSH)
+# DATASETS (KHÔNG PUSH RAW DATA)
 # =========================
+Data/
 data/
+datasets/
 *.zip
 *.tar
 *.gz
-
-# =========================
-# PYTHON
-# =========================
-__pycache__/
-*.pyc
-*.pyo
 
 # =========================
 # MODELS (FILE NẶNG)
@@ -20,14 +15,28 @@ __pycache__/
 *.h5
 *.pt
 *.joblib
+*.onnx
 
 # =========================
-# OUTPUTS (CHỈ GIỮ DEMO NHẸ)
+# PYTHON CACHE
 # =========================
-outputs/*
-!outputs/README.md
+__pycache__/
+*.pyc
+*.pyo
+
+# =========================
+# OUTPUTS (GIỮ ẢNH DEMO)
+# =========================
+outputs/
+!outputs/.gitkeep
 !outputs/*.png
 !outputs/*.jpg
+!outputs/*.jpeg
+
+# =========================
+# JUPYTER
+# =========================
+.ipynb_checkpoints/
 
 # =========================
 # SYSTEM FILES
@@ -42,6 +51,12 @@ Thumbs.db
 .idea/
 
 # =========================
-# JUPYTER
+# LOG / TEMP FILES
 # =========================
-.ipynb_checkpoints/
+*.log
+*.tmp
+
+# =========================
+# OPTIONAL (comment nếu cần push notebook)
+# =========================
+# *.ipynb
