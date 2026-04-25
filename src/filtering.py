@@ -2,47 +2,68 @@ import cv2
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
-TARGET_SIZE = (224, 224)
-def full_preprocess(img_bgr, angle=0, visualize=False):
+from src.config import TARGET_SIZE, FOOD101_SUBSET, FOOD101_PROCESSED
+def full_preprocess(img_bgr, angle=0, target_size=TARGET_SIZE):
+    img = cv2.resize(img_bgr, target_size)
+    if angle:
+        h, w = target_size
+        center = (w // 2, h // 2)
+        M = cv2.getRotationMatrix2D(center, angle, 1.0)
+        img = cv2.warpAffine(img, M, target_size, borderMode=cv2.BORDER_REFLECT)
+    img = cv2.bilateralFilter(img, d=7, sigmaColor=60, sigmaSpace=60)
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2Lab)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+    l = clahe.apply(l)
+    lab = cv2.merge((l, a, b))
+    img = cv2.cvtColor(lab, cv2.COLOR_Lab2BGR)
+    return img.astype(np.float32) / 255.0
+
+def show_preprocess_steps(img_bgr, angle=0, save_path=None):
+    import matplotlib.pyplot as plt
     img = cv2.resize(img_bgr, TARGET_SIZE)
-    if angle != 0:
+    if angle:
         center = (TARGET_SIZE[0] // 2, TARGET_SIZE[1] // 2)
         M = cv2.getRotationMatrix2D(center, angle, 1.0)
         img = cv2.warpAffine(img, M, TARGET_SIZE, borderMode=cv2.BORDER_REFLECT)
-    img_bilateral = cv2.bilateralFilter(img, d=9, sigmaColor=75, sigmaSpace=75)
-    lab = cv2.cvtColor(img_bilateral, cv2.COLOR_BGR2Lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    lab[:, :, 0] = clahe.apply(lab[:, :, 0])
-    img_enhanced = cv2.cvtColor(lab, cv2.COLOR_Lab2BGR)
-    img_norm = img_enhanced.astype(np.float32) / 255.0
-    if visualize:
-        _show_steps(img, img_bilateral, img_enhanced)
-    return img_norm
-
-def _show_steps(orig, after_filter, after_clahe):
-    import matplotlib.pyplot as plt
+    blurred = cv2.bilateralFilter(img, d=7, sigmaColor=60, sigmaSpace=60)
+    lab = cv2.cvtColor(blurred, cv2.COLOR_BGR2Lab)
+    l, a, b = cv2.split(lab)
+    l = cv2.createCLAHE(2.5, (8, 8)).apply(l)
+    enhanced = cv2.cvtColor(cv2.merge((l, a, b)), cv2.COLOR_Lab2BGR)
     fig, ax = plt.subplots(1, 3, figsize=(12, 4))
-    for a, img, title in zip(ax,
-        [orig, after_filter, after_clahe],
-        ["Original (resized)", "After Bilateral", "After CLAHE"]):
-        a.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        a.set_title(title); a.axis("off")
-    plt.tight_layout(); plt.show()
+    steps = [
+        (img, "Resized"),
+        (blurred, "Bilateral"),
+        (enhanced, "CLAHE"),
+    ]
+    for i, (im, title) in enumerate(steps):
+        ax[i].imshow(cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
+        ax[i].set_title(title)
+        ax[i].axis("off")
+    plt.tight_layout()
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=150)
+    plt.show()
 
-def process_dataset(src_root=r"C:\Users\ADMIN\Downloads\food101_subset",
-                    dst_root=r"C:\Users\ADMIN\Downloads\food101_processed"):
-    src = Path(src_root)
-    dst = Path(dst_root)
-    for img_path in tqdm(list(src.rglob("*.jpg"))):
-        rel = img_path.relative_to(src)      
-        out_path = dst / rel.with_suffix(".npy") 
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        img = cv2.imread(str(img_path))
+def process_dataset(src_root=None, dst_root=None):
+    src = Path(src_root) if src_root else FOOD101_SUBSET
+    dst = Path(dst_root) if dst_root else FOOD101_PROCESSED
+    imgs = list(src.rglob("*.jpg"))
+    print(f"Found {len(imgs)} images")
+    skipped = 0
+    for p in tqdm(imgs):
+        img = cv2.imread(str(p))
         if img is None:
+            skipped += 1
             continue
+        rel = p.relative_to(src)
+        out_path = dst / rel.with_suffix(".npy")
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         processed = full_preprocess(img)
         np.save(out_path, processed)
-    print(dst_root)
-sample = cv2.imread(r"C:\Users\ADMIN\Downloads\food101_subset\train\pizza\5764.jpg")
-full_preprocess(sample, angle = 30, visualize=True)
-process_dataset()
+
+if __name__ == "__main__":
+    process_dataset()
