@@ -28,7 +28,7 @@ class FoodSegmenter:
         upper = int(min(255, (1.0 + sigma) * v))
         return cv2.Canny(image, lower, upper)
     def get_mask(self, img_bgr, strategy='lab_canny'):
-        """Thực hiện 4 chiến lược khác nhau"""
+        """Thực hiện 4 chiến lược khác nhau, nhìn kết quả thủ công t chọn gray_canny vì nó có vẻ ổn định nhất trên nhiều ảnh, còn 3 chiến lược kia đôi khi bị thiếu hoặc thừa biên"""
         clean_img = self.enhancer.enhance(img_bgr)
         
         if strategy == 'gray_canny':
@@ -84,14 +84,8 @@ class FoodSegmenter:
 def show_images(images, titles=None, cols=3, figsize=(10, 20), cmap='gray'):
     n = len(images)
     rows = math.ceil(n / cols)
-    
-    # Dùng plt.subplots để ép cứng khoảng cách (wspace: ngang, hspace: dọc)
-    # wspace=0.05 nghĩa là khoảng cách ngang cực kỳ hẹp
     fig, axes = plt.subplots(rows, cols, figsize=figsize, 
                              gridspec_kw={'wspace': 0.05, 'hspace': 0.3})
-    
-    # Làm phẳng mảng axes thành list 1 chiều để dễ dùng vòng lặp for
-    # (Trường hợp cols=1 hoặc rows=1, flatten() giúp tránh lỗi)
     if isinstance(axes, np.ndarray):
         axes = axes.flatten()
     else:
@@ -109,8 +103,6 @@ def show_images(images, titles=None, cols=3, figsize=(10, 20), cmap='gray'):
         ax.axis('off')
         if titles is not None and i < len(titles):
             ax.set_title(titles[i], fontsize=12, fontweight='bold', pad=8)
-            
-    # Tắt (ẩn) các ô trống nếu số ảnh không lấp đầy lưới
     for j in range(len(images), len(axes)):
         axes[j].axis('off')
 
@@ -153,7 +145,7 @@ def run_experiment(data_path, num_samples=5):
             display_titles.append(f"Method: {st}")
 
         show_images(display_images, titles=display_titles, cols=6, figsize=(24, 4))
-        print("-> Hãy đóng (tắt) cửa sổ ảnh để xem ảnh tiếp theo...")
+        print("Hãy đóng (tắt) cửa sổ ảnh để xem ảnh tiếp theo...")
 
 if __name__ == "__main__":
     ZIP_ID = "1Y4LQIhG1dKseOuPiy4w9bX2y4JjRVZEt"
