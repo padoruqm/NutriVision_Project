@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ## Cài đặt
 ```
 pip install opencv-python numpy matplotlib scikit-learn scikit-image tqdm
@@ -12,3 +13,8 @@ python -m src.load_dataset
 python -m src.filtering
 ```
 Kết quả nằm trong `data/food101_subset/` và `data/food101_processed/`.
+=======
+
+/// Chứa các đoạn code dùng chung, tránh trùng lặp code
+
+>>>>>>> 6894dfa (update project except preprocessing modules)
