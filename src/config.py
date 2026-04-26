@@ -4,7 +4,8 @@ DATA_DIR          = PROJECT_ROOT / "data"
 FOOD101_RAW       = DATA_DIR / "food-101"
 FOOD101_SUBSET    = DATA_DIR / "food101_subset"
 FOOD101_PROCESSED = DATA_DIR / "food101_processed"
-OUTPUTS_DIR = PROJECT_ROOT / "outputs"
+FOOD101_CONTOUR = DATA_DIR / "food101_contour"
+OUTPUTS_DIR = PROJECT_ROOT
 SELECTED_CLASSES = [
     "pizza", "hamburger", "french_fries", "ice_cream", "chocolate_cake",
     "sushi", "ramen", "fried_rice", "omelette", "pancakes",

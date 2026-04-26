@@ -1,4 +1,3 @@
-from email.mime import image
 import zipfile
 import cv2
 import numpy as np
@@ -9,28 +8,24 @@ import gdown
 import importlib
 import matplotlib.pyplot as plt
 from pathlib import Path
-from sklearn import preprocessing
-from tqdm import tqdm
 import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(parent_dir)
 sys.stdout.reconfigure(encoding='utf-8')
-preprocessing_module = importlib.import_module("02_preprocessing.preprocessing")
-ImageEnhancer = preprocessing_module.ImageEnhancer
+from src.config import FOOD101_PROCESSED
 class FoodSegmenter:
-    def __init__(self, target_size=(256, 256)):
-        self.enhancer = ImageEnhancer(target_size=target_size)
+    def __init__(self, target_size=(224, 224)):
+        self.target_size = target_size
 
     def auto_canny(self, image, sigma=0.33):
         v = np.median(image)
         lower = int(max(0, (1.0 - sigma) * v))
         upper = int(min(255, (1.0 + sigma) * v))
         return cv2.Canny(image, lower, upper)
-    def get_mask(self, img_bgr, strategy='lab_canny'):
+    def get_mask(self, clean_img, strategy='lab_canny'):
         """Thực hiện 4 chiến lược khác nhau, nhìn kết quả thủ công t chọn gray_canny vì nó có vẻ ổn định nhất trên nhiều ảnh, còn 3 chiến lược kia đôi khi bị thiếu hoặc thừa biên"""
-        clean_img = self.enhancer.enhance(img_bgr)
-        
+        binary = None
         if strategy == 'gray_canny':
             gray = cv2.cvtColor(clean_img, cv2.COLOR_BGR2GRAY)
             binary = self.auto_canny(gray)
@@ -107,55 +102,40 @@ def show_images(images, titles=None, cols=3, figsize=(10, 20), cmap='gray'):
         axes[j].axis('off')
 
     plt.show()
-
-def run_experiment(data_path, num_samples=5):
-    """ Hàm Chạy thử nghiệm so sánh 4 phương pháp canny và hiển thị bằng popup. Sau khi thử nghiệm trong 50 ảnh t chọn gray_canny"""
-    segmenter = FoodSegmenter()
-    all_images = list(Path(data_path).rglob("*.jpg"))
-    samples = random.sample(all_images, min(num_samples, len(all_images)))
+if __name__ == "__main__":
+    print(f"Đang chạy kiểm tra 50 ảnh với 4 phương pháp Contour...")
+    print(f"Nguồn dữ liệu (Đã tiền xử lý): {FOOD101_PROCESSED}")
     
+    segmenter = FoodSegmenter()
+    all_images = list(FOOD101_PROCESSED.rglob("*.jpg"))
+    
+    if not all_images:
+        print("Không tìm thấy ảnh! Hãy chạy Step 02: Preprocessing trước.")
+        sys.exit()
+        
+    samples = random.sample(all_images, min(50, len(all_images)))
     strategies = ['gray_canny', 'otsu_sv', 'lab_canny', 'gradient_canny']
     
     for i, img_p in enumerate(samples):
-        print(f"[{i+1}/{num_samples}] Đang hiển thị ảnh: {img_p.name}")
-        img_bgr = cv2.imread(str(img_p))
+        print(f"[{i+1}/{len(samples)}] Hiển thị ảnh: {img_p.name}")
+        # Đọc ảnh ĐÃ tiền xử lý
+        clean_img = cv2.imread(str(img_p))
+        if clean_img is None: continue
         
-        # 1. Ảnh gốc 
-        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-        
-        # 2. Ảnh sau tiền xử lý
-        clean_img = segmenter.enhancer.enhance(img_bgr)
         clean_rgb = cv2.cvtColor(clean_img, cv2.COLOR_BGR2RGB)
+        display_images = [clean_rgb, clean_rgb]
+        display_titles = ["1. Input (Processed)", "2. Ready for Contour"]
         
-        # Chuẩn bị danh sách ảnh và tiêu đề để đưa vào hàm show_images
-        display_images = [img_rgb, clean_rgb, ]
-        display_titles = ["1. Original", "2. Preprocessed"]
-        
-        #Chạy 4 chiến lược và thu thập ảnh kết quả
         for st in strategies:
-            _, binary, cnt = segmenter.get_mask(img_bgr, strategy=st)
+            _, binary, cnt = segmenter.get_mask(clean_img, strategy=st)
             
-            # Vẽ viền lên ảnh tiền xử lý
+            # Vẽ viền xanh lá (0, 255, 0) lên ảnh
             vis = clean_img.copy()
             if cnt is not None:
                 cv2.drawContours(vis, [cnt], -1, (0, 255, 0), 2)
-            
-            # Đưa vào list 
+                
             display_images.append(cv2.cvtColor(vis, cv2.COLOR_BGR2RGB))
             display_titles.append(f"Method: {st}")
 
         show_images(display_images, titles=display_titles, cols=6, figsize=(24, 4))
         print("Hãy đóng (tắt) cửa sổ ảnh để xem ảnh tiếp theo...")
-
-if __name__ == "__main__":
-    ZIP_ID = "1Y4LQIhG1dKseOuPiy4w9bX2y4JjRVZEt"
-    DATA_DIR = "./train_dataset"
-    ZIP_PATH = "./train_data.zip"
-
-    if not os.path.exists(DATA_DIR):
-        gdown.download(f'https://drive.google.com/uc?id={ZIP_ID}', ZIP_PATH, quiet=False)
-        with zipfile.ZipFile(ZIP_PATH, 'r') as z:
-            z.extractall(DATA_DIR)
-        os.remove(ZIP_PATH)
-    print("Running Experiments on random samples...")
-    run_experiment(DATA_DIR, num_samples=50)
