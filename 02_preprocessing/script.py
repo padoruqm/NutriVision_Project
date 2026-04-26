@@ -51,7 +51,7 @@ def run_preprocessing_pipeline():
 
         # --- Tách bóc từng bước để vẽ ảnh và đồ thị ---
         # 1. Original (Đã resize padding)
-        img_resized = enhancer.resize_keep_ratio(img_bgr)
+        img_resized = enhancer.resize_reflect_padding(img_bgr)
         img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
 
         # 2. Grayscale 

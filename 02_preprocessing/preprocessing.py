@@ -7,30 +7,40 @@ class ImageEnhancer:
         # Khởi tạo CLAHE
         self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8, 8))
 
-    def resize_keep_ratio(self, img):
-        """
-        Resize ảnh màu bgr về size x size nhưng vẫn giữ tỉ lệ gốc, đệm padding màu đen nếu cần."""
+    import cv2
+
+    def resize_reflect_padding(self, img):
         target_w, target_h = self.target_size
         h, w = img.shape[:2]
-        
-        # Tính tỷ lệ theo cạnh dài nhất để ảnh không bị tràn canvas
+
+        # Nếu đã đúng size thì bỏ qua
+        if (w, h) == (target_w, target_h):
+            return img
+
+        # Scale để fit vào khung (giữ tỉ lệ)
         scale = min(target_w / w, target_h / h)
-        new_w, new_h = int(w * scale), int(h * scale)
-        
-        # Resize dùng INTER_AREA để giảm thiểu mất mát chi tiết khi giảm kích thước
+        new_w = round(w * scale)
+        new_h = round(h * scale)
+
+        # Resize
         img_resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
-        
-        # Tạo canvas nền đen
-        canvas = np.zeros((target_h, target_w, 3), dtype=np.uint8)
-        
-        # Tính toán để căn giữa ảnh trên canvas
-        x_offset = (target_w - new_w) // 2
-        y_offset = (target_h - new_h) // 2
-        
-        # Dán ảnh vào giữa canvas
-        canvas[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = img_resized
-        
-        return canvas
+
+        # Padding
+        pad_w = target_w - new_w
+        pad_h = target_h - new_h
+
+        top = pad_h // 2
+        bottom = pad_h - top
+        left = pad_w // 2
+        right = pad_w - left
+
+        # Reflect padding
+        padded_img = cv2.copyMakeBorder(
+            img_resized,
+            top, bottom, left, right,
+            cv2.BORDER_REFLECT_101
+        )
+        return padded_img
     def enhance(self, img_bgr):
         """
         Pipeline: Resize -> Denoise -> CLAHE 
@@ -38,7 +48,7 @@ class ImageEnhancer:
         if img_bgr is None: return None
 
         # 1. Resize 
-        img_resized = self.resize_keep_ratio(img_bgr)
+        img_resized = self.resize_reflect_padding(img_bgr)
 
         # 2. Denoise bằng Bilateral Filter
         blurred = cv2.bilateralFilter(img_resized, d=5, sigmaColor=50, sigmaSpace=50)

@@ -1,13 +1,9 @@
-import zipfile
 import cv2
 import numpy as np
 import os
 import random
 import math
-import gdown
-import importlib
 import matplotlib.pyplot as plt
-from pathlib import Path
 import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.abspath(os.path.join(current_dir, '..'))

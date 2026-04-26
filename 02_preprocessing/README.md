@@ -29,24 +29,7 @@ Trước khi chạy script, bạn cần đảm bảo dữ liệu được đặt
 python 02_preprocessing/script.py
 ```
 
-## 3. Kỹ thuật Resize giữ nguyên tỷ lệ (Aspect Ratio)
-
-Khác với cách resize "cứng" (ép ảnh về hình vuông gây méo hình), Pipeline này sử dụng phương pháp **`resize_keep_ratio`** trong class `ImageEnhancer`:
-
-### Cơ chế hoạt động:
-
-1.  **Tính toán tỷ lệ:** Tìm cạnh dài nhất của ảnh và tính toán tỷ lệ thu nhỏ sao cho cạnh đó bằng `224px`.
-2.  **Resize bảo toàn:** Thu nhỏ ảnh theo tỷ lệ vừa tính. Lúc này ảnh vẫn giữ đúng hình dạng gốc nhưng có một cạnh chưa đủ `224px`.
-3.  **Padding (Đệm ảnh):** Sử dụng hàm `cv2.copyMakeBorder` để thêm các dải màu đen vào các cạnh còn thiếu, đưa ảnh về kích thước chuẩn `224x224`.
-
-**Ưu điểm:**
-
-- Không làm biến dạng đặc trưng hình học của món ăn (ví dụ: pizza vẫn hình tròn thay vì hình bầu dục).
-- Giúp mô hình học được hình dạng thực tế của vật thể tốt hơn.
-
----
-
-## 4. Cách sử dụng dữ liệu sạch ở các bước sau
+## 3. Cách sử dụng dữ liệu sạch ở các bước sau
 
 Dữ liệu sau khi chạy `script.py` đã nằm gọn gàng trong `data/02_preprocessing/`. Để gọi dữ liệu này trong các bước tiếp theo, bạn nên sử dụng biến cấu hình trong `src/config.py`.
 
@@ -66,7 +49,7 @@ img = cv2.imread(str(sample_img_path))
 
 ---
 
-## 5. Các bước tiền xử lý chi tiết (Pipeline)
+## 4. Các bước tiền xử lý chi tiết (Pipeline)
 
 Mỗi bức ảnh sẽ đi qua các bộ lọc sau:
 
