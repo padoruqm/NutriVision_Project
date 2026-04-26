@@ -6,12 +6,7 @@ from src.config import FOOD101_RAW, FOOD101_SUBSET, SELECTED_CLASSES
 def copy_split(data_dict, split_name, out_dir):
     for cls in SELECTED_CLASSES:
         paths = data_dict.get(cls, [])
-        if split_name == "train":
-            tr, va = train_test_split(paths, test_size=0.2, random_state=42)
-            _copy(tr, "train", cls, out_dir)
-            _copy(va, "val",   cls, out_dir)
-        else:
-            _copy(paths, "test", cls, out_dir)
+        _copy(paths, split_name, cls, out_dir)
 
 def _copy(paths, split, cls, out_dir):
     dst = out_dir / split / cls
@@ -32,7 +27,7 @@ def load_and_split():
         test_json = json.load(f)
     copy_split(train_json, "train", FOOD101_SUBSET)
     copy_split(test_json,  "test",  FOOD101_SUBSET)
-    for s in ["train", "val", "test"]:
+    for s in ["train", "test"]:
         d = FOOD101_SUBSET / s
         if d.exists():
             n = sum(len(list((d/c).glob("*.jpg"))) for c in SELECTED_CLASSES)
