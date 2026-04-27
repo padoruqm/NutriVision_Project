@@ -1,7 +1,7 @@
 """
 04_HOG_SVM/pipeline.py
 =======================
-Pipeline HOG + SVM hoàn chỉnh cho dataset Nutrivision.
+Pipeline HOG + SVM hoàn chỉnh – tích hợp ImageEnhancer từ 02_preprocessing.
 
 Cấu trúc dataset yêu cầu:
     dataset/
@@ -16,7 +16,7 @@ Chạy:
     python 04_HOG_SVM/pipeline.py --dataset dataset/ --test path/anh_test.jpg
 
 Pipeline tự động:
-    ① Đọc dataset  →  ② Tiền xử lý  →  ③ HOG features
+    ① Đọc dataset  →  ② Tiền xử lý (Bilateral→CLAHE→Gray→Resize)  →  ③ HOG features
     →  ④ Train SVM  →  ⑤ Đánh giá  →  ⑥ Lưu ảnh kết quả
 """
 
@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore")
 import cv2
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")          # Không cần display, lưu file luôn
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from skimage.feature import hog
@@ -56,6 +56,91 @@ SUPPORTED_EXT   = (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp")
 
 
 # ════════════════════════════════════════════════════════════
+#  IMAGE ENHANCER – tích hợp từ 02_preprocessing/preprocessing.py
+# ════════════════════════════════════════════════════════════
+
+class ImageEnhancer:
+    """
+    Tích hợp từ 02_preprocessing/preprocessing.py – điều chỉnh thứ tự cho HOG.
+
+    Pipeline enhance() (trên độ phân giải GỐC):
+        Bilateral Filter  →  CLAHE trên kênh L (LAB)
+
+    Resize được tách ra khỏi enhance() và thực hiện CUỐI CÙNG ở preprocess_image()
+    sau khi đã grayscale, lý do:
+        • Bilateral & CLAHE hoạt động tốt hơn ở độ phân giải cao (nhiều chi tiết hơn).
+        • Resize sau grayscale → tránh nội suy màu không cần thiết.
+        • HOG chỉ cần ảnh đúng kích thước ở bước cuối.
+
+    Tại sao dùng LAB + CLAHE trên kênh L?
+        → Tăng tương phản mà không làm sai lệch màu sắc (a, b giữ nguyên).
+
+    Tại sao Bilateral Filter thay vì Gaussian?
+        → Khử nhiễu nhưng bảo toàn cạnh (edge-preserving) – quan trọng cho HOG.
+    """
+
+    def __init__(self, target_size=(128, 128), clip_limit=1.5):
+        self.target_size = target_size
+        # CLAHE: clipLimit chống khuếch đại nhiễu quá mức
+        self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8, 8))
+
+    def resize_reflect_padding(self, img: np.ndarray) -> np.ndarray:
+        """
+        Scale giữ tỉ lệ → fit vào target_size.
+        Phần còn lại dùng BORDER_REFLECT_101 (gương) để tránh viền đen.
+        """
+        target_w, target_h = self.target_size
+        h, w = img.shape[:2]
+
+        if (w, h) == (target_w, target_h):
+            return img
+
+        scale = min(target_w / w, target_h / h)
+        new_w = round(w * scale)
+        new_h = round(h * scale)
+
+        img_resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+        pad_w = target_w - new_w
+        pad_h = target_h - new_h
+        top    = pad_h // 2;  bottom = pad_h - top
+        left   = pad_w // 2;  right  = pad_w - left
+
+        return cv2.copyMakeBorder(
+            img_resized, top, bottom, left, right,
+            cv2.BORDER_REFLECT_101
+        )
+
+    def enhance(self, img_bgr: np.ndarray) -> np.ndarray:
+        """
+        Tăng cường ảnh trên độ phân giải GỐC (KHÔNG resize ở đây).
+        Resize sẽ là bước CUỐI trong preprocess_image() sau khi đã grayscale.
+
+        Các bước:
+            ① Bilateral Filter  – khử nhiễu, giữ cạnh
+            ② CLAHE trên kênh L – tăng tương phản cục bộ
+        """
+        if img_bgr is None:
+            return None
+
+        # ① Denoise – Bilateral Filter (trên ảnh gốc, giữ toàn bộ chi tiết)
+        blurred = cv2.bilateralFilter(img_bgr, d=5, sigmaColor=50, sigmaSpace=50)
+
+        # ② CLAHE trên kênh L của LAB
+        lab = cv2.cvtColor(blurred, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        l_enhanced = self.clahe.apply(l)
+        lab_enhanced = cv2.merge((l_enhanced, a, b))
+        img_enhanced = cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2BGR)
+
+        return img_enhanced
+
+
+# ── Khởi tạo enhancer dùng chung toàn pipeline ───────────────
+enhancer = ImageEnhancer(target_size=IMG_SIZE, clip_limit=1.5)
+
+
+# ════════════════════════════════════════════════════════════
 #  BƯỚC 1 – ĐỌC DATASET
 # ════════════════════════════════════════════════════════════
 
@@ -65,9 +150,10 @@ def load_dataset(dataset_path: str):
     Mỗi thư mục con = 1 class.
 
     Returns:
-        images : list ảnh BGR gốc (chưa xử lý) để visualise
-        labels : list tên class tương ứng
-        paths  : list đường dẫn file
+        images  : list ảnh BGR gốc (chưa xử lý)
+        labels  : list tên class tương ứng
+        paths   : list đường dẫn file
+        classes : list tên class (sorted)
     """
     if not os.path.isdir(dataset_path):
         sys.exit(f"[LỖI] Không tìm thấy thư mục dataset: {dataset_path}")
@@ -147,42 +233,42 @@ def visualize_samples(images, labels, classes, n_per_class=4):
 
 
 # ════════════════════════════════════════════════════════════
-#  BƯỚC 2 – TIỀN XỬ LÝ
+#  BƯỚC 2 – TIỀN XỬ LÝ  (dùng ImageEnhancer)
 # ════════════════════════════════════════════════════════════
 
 def preprocess_image(bgr: np.ndarray) -> np.ndarray:
     """
-    Pipeline tiền xử lý chuẩn cho 1 ảnh:
-      ① Resize về IMG_SIZE (128×128)
-      ② Chuyển sang Grayscale
-      ③ CLAHE – cân bằng histogram cục bộ (tăng tương phản)
-      ④ Gaussian Blur nhẹ – khử nhiễu
+    Pipeline tiền xử lý – resize là bước CUỐI để phù hợp với HOG:
+        ① Bilateral Filter          – khử nhiễu, bảo toàn cạnh (ở độ phân giải gốc)
+        ② CLAHE trên kênh L (LAB)   – tăng tương phản cục bộ  (ở độ phân giải gốc)
+        ③ Chuyển sang Grayscale     – loại bỏ thông tin màu trước khi nội suy
+        ④ Resize + reflect padding  – co về IMG_SIZE, đầu vào chuẩn cho HOG
+
+    Lý do resize cuối:
+        Bilateral & CLAHE hiệu quả hơn khi còn đủ pixel gốc.
+        Grayscale trước resize → nội suy 1 kênh, nhanh & chính xác hơn.
 
     Returns:
-        gray_processed : ảnh grayscale đã xử lý, dtype uint8
+        gray_resized : ảnh grayscale uint8 kích thước IMG_SIZE
     """
-    # ① Resize
-    resized = cv2.resize(bgr, IMG_SIZE, interpolation=cv2.INTER_AREA)
+    # ①② Tăng cường trên độ phân giải gốc
+    enhanced_bgr = enhancer.enhance(bgr)
 
-    # ② Grayscale
-    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+    # ③ Grayscale
+    gray = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2GRAY)
 
-    # ③ CLAHE (Contrast Limited Adaptive Histogram Equalization)
-    clahe     = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    enhanced  = clahe.apply(gray)
+    # ④ Resize + reflect padding – bước cuối, chuẩn hoá kích thước cho HOG
+    gray_resized = enhancer.resize_reflect_padding(gray)
 
-    # ④ Gaussian blur nhẹ khử nhiễu (kernel 3×3, sigma tự tính)
-    denoised  = cv2.GaussianBlur(enhanced, (3, 3), 0)
-
-    return denoised
+    return gray_resized
 
 
 def preprocess_all(images: list, labels: list):
-    """Tiền xử lý toàn bộ dataset, trả về ảnh gốc và ảnh đã xử lý song song."""
+    """Tiền xử lý toàn bộ dataset."""
     print(f"\n{'─'*55}")
     print(f"  BƯỚC 2: TIỀN XỬ LÝ ({len(images)} ảnh)")
     print(f"{'─'*55}")
-    print(f"  Resize → {IMG_SIZE} | Grayscale | CLAHE | Gaussian Blur")
+    print(f"  Bilateral Filter → CLAHE (LAB/L) → Grayscale → Resize+Padding")
 
     processed = [preprocess_image(img) for img in images]
 
@@ -190,33 +276,63 @@ def preprocess_all(images: list, labels: list):
     return processed
 
 
-def visualize_preprocessing(images, processed, labels, classes, n=2):
-    """So sánh ảnh gốc vs ảnh đã tiền xử lý cho mỗi class."""
+def visualize_preprocessing(images, processed, labels, classes):
+    """
+    So sánh từng bước pipeline tiền xử lý cho mỗi class (thứ tự mới):
+        Cột 1 : Ảnh gốc (BGR, độ phân giải gốc)
+        Cột 2 : Sau Bilateral Filter   (khử nhiễu – vẫn ở kích thước gốc)
+        Cột 3 : Sau CLAHE             (tăng tương phản – vẫn màu, kích thước gốc)
+        Cột 4 : Grayscale             (trước khi resize)
+        Cột 5 : Resize + Padding      (128×128, đầu vào HOG)
+    """
     n_cls = min(len(classes), 4)
-    fig, axes = plt.subplots(n_cls, 4, figsize=(14, n_cls * 3.5))
+    fig, axes = plt.subplots(n_cls, 5, figsize=(18, n_cls * 3.5))
     if n_cls == 1:
         axes = [axes]
 
-    col_titles = ["Gốc (BGR)", "Resize + Gray", "Sau CLAHE", "Sau Gaussian"]
+    col_titles = [
+        "① Gốc (BGR)",
+        "② Bilateral Filter",
+        "③ CLAHE (L-channel)",
+        "④ Grayscale",
+        "⑤ Resize+Padding → HOG",
+    ]
     for j, t in enumerate(col_titles):
-        axes[0][j].set_title(t, fontsize=10, fontweight="bold")
+        axes[0][j].set_title(t, fontsize=9, fontweight="bold")
 
     for i, cls in enumerate(classes[:n_cls]):
-        idx   = next(k for k, l in enumerate(labels) if l == cls)
-        orig  = images[idx]
-        proc  = processed[idx]
-        resized_color = cv2.resize(orig, IMG_SIZE, interpolation=cv2.INTER_AREA)
-        gray_only     = cv2.cvtColor(resized_color, cv2.COLOR_BGR2GRAY)
-        clahe_only    = cv2.createCLAHE(2.0, (8,8)).apply(gray_only)
+        idx  = next(k for k, lbl in enumerate(labels) if lbl == cls)
+        orig = images[idx]
 
-        axes[i][0].imshow(cv2.cvtColor(orig, cv2.COLOR_BGR2RGB))
-        axes[i][1].imshow(gray_only,  cmap="gray")
-        axes[i][2].imshow(clahe_only, cmap="gray")
-        axes[i][3].imshow(proc,       cmap="gray")
+        # ① → ② Bilateral trên ảnh gốc
+        step2 = cv2.bilateralFilter(orig, d=5, sigmaColor=50, sigmaSpace=50)
+
+        # ② → ③ CLAHE trên kênh L (vẫn ở kích thước gốc)
+        lab = cv2.cvtColor(step2, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        l_enh = enhancer.clahe.apply(l)
+        step3 = cv2.cvtColor(cv2.merge((l_enh, a, b)), cv2.COLOR_LAB2BGR)
+
+        # ③ → ④ Grayscale (trước khi resize)
+        step4 = cv2.cvtColor(step3, cv2.COLOR_BGR2GRAY)
+
+        # ④ → ⑤ Resize + reflect padding – bước cuối
+        step5 = processed[idx]   # đã tính sẵn trong preprocess_image()
+
+        axes[i][0].imshow(cv2.cvtColor(orig,  cv2.COLOR_BGR2RGB))
+        axes[i][1].imshow(cv2.cvtColor(step2, cv2.COLOR_BGR2RGB))
+        axes[i][2].imshow(cv2.cvtColor(step3, cv2.COLOR_BGR2RGB))
+        axes[i][3].imshow(step4, cmap="gray")
+        axes[i][4].imshow(step5, cmap="gray")
+
         axes[i][0].set_ylabel(cls, fontsize=10, fontweight="bold")
-        for ax in axes[i]: ax.set_xticks([]); ax.set_yticks([])
+        for ax in axes[i]:
+            ax.set_xticks([]); ax.set_yticks([])
 
-    plt.suptitle("Pipeline Tiền Xử Lý – từng bước", fontsize=13, fontweight="bold")
+    plt.suptitle(
+        "Pipeline Tiền Xử Lý – Resize là bước cuối (cho HOG)",
+        fontsize=13, fontweight="bold"
+    )
     plt.tight_layout()
     out = os.path.join(OUTPUT_DIR, "02_preprocessing_steps.png")
     plt.savefig(out, dpi=150, bbox_inches="tight")
@@ -233,10 +349,10 @@ def extract_hog(gray: np.ndarray):
     Trích xuất HOG feature vector từ 1 ảnh grayscale.
 
     HOG Pipeline:
-      Gradient (Gx, Gy) → Magnitude + Direction
-      → Cell histogram (9 bins, 0°–180°)
-      → Block normalization L2-Hys (2×2 cells/block)
-      → Feature vector 1D
+        Gradient (Gx, Gy)  →  Magnitude + Direction
+        →  Cell histogram (9 bins, 0°–180°)
+        →  Block normalization L2-Hys (2×2 cells/block)
+        →  Feature vector 1D
 
     Returns:
         features  : np.ndarray 1D – HOG descriptor
@@ -278,11 +394,11 @@ def visualize_hog(processed, labels, classes):
     if n_cls == 1:
         axes = [axes]
 
-    for j, t in enumerate(["Ảnh đã xử lý", "HOG Visualization", "Histogram (128 bins)"]):
+    for j, t in enumerate(["Ảnh đã xử lý (Gray)", "HOG Visualization", "Histogram (128 bins đầu)"]):
         axes[0][j].set_title(t, fontsize=10, fontweight="bold")
 
     for i, cls in enumerate(classes[:n_cls]):
-        idx  = next(k for k, l in enumerate(labels) if l == cls)
+        idx  = next(k for k, lbl in enumerate(labels) if lbl == cls)
         gray = processed[idx]
         feat, hog_vis = extract_hog(gray)
         hog_rescaled  = exposure.rescale_intensity(hog_vis, in_range=(0, 10))
@@ -291,7 +407,8 @@ def visualize_hog(processed, labels, classes):
         axes[i][0].set_ylabel(cls, fontsize=10, fontweight="bold")
         axes[i][1].imshow(hog_rescaled, cmap="gray")
         axes[i][2].bar(range(128), feat[:128], color="steelblue", width=1.0)
-        for ax in axes[i][:2]: ax.set_xticks([]); ax.set_yticks([])
+        for ax in axes[i][:2]:
+            ax.set_xticks([]); ax.set_yticks([])
 
     plt.suptitle("HOG Features – mỗi hàng là 1 class", fontsize=13, fontweight="bold")
     plt.tight_layout()
@@ -311,10 +428,11 @@ def train_svm(X: np.ndarray, y_encoded: np.ndarray, le: LabelEncoder):
 
     Pipeline:
         StandardScaler  → chuẩn hoá feature (zero mean, unit variance)
-        SVC(rbf)        → SVM kernel RBF, tự tìm best decision boundary
+        SVC(rbf)        → SVM kernel RBF
 
     Tại sao StandardScaler?
-        HOG features có scale khác nhau → chuẩn hoá giúp SVM hội tụ nhanh.
+        HOG features có scale khác nhau → chuẩn hoá giúp SVM hội tụ nhanh,
+        đặc biệt cần thiết sau CLAHE vì giá trị pixel đã được kéo giãn.
 
     Returns:
         clf      : Pipeline đã train
@@ -394,7 +512,7 @@ def evaluate(clf, X_test, y_test, le: LabelEncoder):
     ax.axhline(70, color="gray", linestyle="--", linewidth=1, label="Ngưỡng 70%")
     ax.legend()
     for bar, val in zip(bars, per_class_acc):
-        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1.5,
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 1.5,
                 f"{val:.0%}", ha="center", va="bottom", fontsize=9)
     plt.xticks(rotation=30, ha="right")
     plt.tight_layout()
@@ -413,7 +531,7 @@ def evaluate(clf, X_test, y_test, le: LabelEncoder):
 def predict_single(clf, le: LabelEncoder, img_path: str):
     """
     Dự đoán class của 1 ảnh mới.
-    Pipeline: Đọc → Tiền xử lý → HOG → SVM.predict
+    Pipeline: Đọc → ImageEnhancer.enhance() → Grayscale → HOG → SVM.predict
     """
     print(f"\n{'─'*55}")
     print(f"  DỰ ĐOÁN ẢNH: {img_path}")
@@ -424,7 +542,7 @@ def predict_single(clf, le: LabelEncoder, img_path: str):
         print(f"  [LỖI] Không đọc được ảnh: {img_path}")
         return
 
-    # Pipeline
+    # Pipeline nhất quán với lúc train
     gray  = preprocess_image(img)
     feat, hog_vis = extract_hog(gray)
     proba = clf.predict_proba([feat])[0]
@@ -434,7 +552,7 @@ def predict_single(clf, le: LabelEncoder, img_path: str):
 
     # Visualise kết quả
     fig, axes = plt.subplots(1, 3, figsize=(13, 4))
-    axes[0].imshow(cv2.cvtColor(img,  cv2.COLOR_BGR2RGB))
+    axes[0].imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     axes[0].set_title("Ảnh gốc", fontsize=11)
     axes[1].imshow(hog_rescaled, cmap="gray")
     axes[1].set_title("HOG Visualization", fontsize=11)
@@ -442,14 +560,15 @@ def predict_single(clf, le: LabelEncoder, img_path: str):
     sorted_idx = np.argsort(proba)[::-1]
     colors = ["#2ecc71" if le.classes_[i] == pred else "#95a5a6" for i in sorted_idx]
     axes[2].barh([le.classes_[i] for i in sorted_idx],
-                 [proba[i]*100 for i in sorted_idx],
+                 [proba[i] * 100 for i in sorted_idx],
                  color=colors)
     axes[2].set_xlabel("Confidence (%)")
     axes[2].set_title(f"Dự đoán: {pred} ({proba.max():.1%})",
                       fontsize=11, fontweight="bold", color="#27ae60")
     axes[2].set_xlim(0, 110)
 
-    for ax in axes[:2]: ax.axis("off")
+    for ax in axes[:2]:
+        ax.axis("off")
     plt.suptitle("Kết quả phân loại HOG + SVM", fontsize=13, fontweight="bold")
     plt.tight_layout()
     out = os.path.join(OUTPUT_DIR, "06_prediction_result.png")
@@ -476,7 +595,7 @@ def save_model(clf, le, model_path="04_HOG_SVM/model.pkl"):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Pipeline HOG + SVM cho Nutrivision",
+        description="Pipeline HOG + SVM – tích hợp ImageEnhancer",
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument("--dataset", type=str, default="dataset",
@@ -487,15 +606,16 @@ def main():
                              "VD: --test samples/test.jpg")
     args = parser.parse_args()
 
-    print("\n" + "═"*55)
+    print("\n" + "═" * 55)
     print("   HOG + SVM PIPELINE – Nutrivision Midterm")
-    print("═"*55)
+    print("   Tiền xử lý: Bilateral → CLAHE-LAB → Grayscale → Resize (cuối)")
+    print("═" * 55)
 
     # ── 1. Đọc dataset ─────────────────────────────────────
     images, labels, paths, classes = load_dataset(args.dataset)
     visualize_samples(images, labels, classes)
 
-    # ── 2. Tiền xử lý ──────────────────────────────────────
+    # ── 2. Tiền xử lý (ImageEnhancer) ─────────────────────
     processed = preprocess_all(images, labels)
     visualize_preprocessing(images, processed, labels, classes)
 
@@ -519,13 +639,13 @@ def main():
         predict_single(clf, le, args.test)
 
     # ── Tổng kết ───────────────────────────────────────────
-    print(f"\n{'═'*55}")
+    print(f"\n{'═' * 55}")
     print(f"  ✅ PIPELINE HOÀN THÀNH")
-    print(f"{'═'*55}")
+    print(f"{'═' * 55}")
     print(f"  Ảnh kết quả lưu trong: 04_HOG_SVM/images/")
     print(f"")
     print(f"  01_dataset_samples.png     – Mẫu ảnh mỗi class")
-    print(f"  02_preprocessing_steps.png – So sánh các bước tiền xử lý")
+    print(f"  02_preprocessing_steps.png – 5 bước (Bilateral→CLAHE→Gray→Resize)")
     print(f"  03_hog_visualization.png   – HOG features từng class")
     print(f"  04_confusion_matrix.png    – Ma trận nhầm lẫn")
     print(f"  05_per_class_accuracy.png  – Accuracy từng class")
@@ -534,7 +654,7 @@ def main():
     print(f"")
     print(f"  Dự đoán ảnh mới:")
     print(f"  python 04_HOG_SVM/pipeline.py --dataset dataset/ --test anh.jpg")
-    print(f"{'═'*55}\n")
+    print(f"{'═' * 55}\n")
 
 
 if __name__ == "__main__":
