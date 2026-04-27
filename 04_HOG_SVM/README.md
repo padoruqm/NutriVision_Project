@@ -6,7 +6,6 @@
 | File | Nội dung |
 |---|---|
 | `hog_features.py` | HOG lý thuyết + trực quan hoá từng bước |
-| `hog_svm_classifier.py` | HOG + SVM: train/test + Sliding Window + NMS |
 | `sift_orb_features.py` | SIFT/ORB keypoints, descriptor, matching |
 
 ## Pipeline HOG + SVM
@@ -35,11 +34,9 @@
 - ORB dùng **Hamming distance**, SIFT dùng **L2 (Euclidean)**
 
 
-
-
 ## Chay toan bo Pipeline
 # - Chạy toàn bộ pipeline (train + đánh giá)
-python 04_HOG_SVM/run_pipeline.py --dataset dataset/
+python3 04_HOG_SVM/run_pipeline.py --dataset dataset/
 # - Chạy + dự đoán luôn 1 ảnh test
-python 04_HOG_SVM/run_pipeline.py --dataset dataset/ --test samples/test.jpg
+python3 04_HOG_SVM/run_pipeline.py --dataset dataset/ --test samples/test.jpg
 
