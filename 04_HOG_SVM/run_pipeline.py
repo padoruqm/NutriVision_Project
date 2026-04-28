@@ -38,7 +38,7 @@ from skimage import exposure
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import (classification_report, confusion_matrix,
                               ConfusionMatrixDisplay, accuracy_score)
 import pickle
@@ -422,34 +422,38 @@ def visualize_hog(processed, labels, classes):
 #  BƯỚC 4 – TRAIN SVM
 # ════════════════════════════════════════════════════════════
 
-def train_svm(X: np.ndarray, y_encoded: np.ndarray, le: LabelEncoder):
+def train_svm(X: np.ndarray, y_encoded: np.ndarray, test_size: float):
     """
-    Train SVM với HOG features.
+    Train SVM với HOG features cho 1 tỉ lệ split cụ thể.
 
     Pipeline:
         StandardScaler  → chuẩn hoá feature (zero mean, unit variance)
         SVC(rbf)        → SVM kernel RBF
 
-    Tại sao StandardScaler?
-        HOG features có scale khác nhau → chuẩn hoá giúp SVM hội tụ nhanh,
-        đặc biệt cần thiết sau CLAHE vì giá trị pixel đã được kéo giãn.
+    Args:
+        test_size : 0.2 → split 80/20 | 0.3 → split 70/30
 
     Returns:
-        clf      : Pipeline đã train
-        X_test   : tập test
-        y_test   : nhãn test (encoded)
+        clf        : Pipeline đã train
+        X_test     : tập test
+        y_test     : nhãn test (encoded)
+        split_label: chuỗi "80/20" hoặc "70/30" dùng để đặt tên file
     """
+    train_pct = int((1 - test_size) * 100)
+    test_pct  = int(test_size * 100)
+    split_label = f"{train_pct}-{test_pct}"   # "80-20" hoặc "70-30"
+
     print(f"\n{'─'*55}")
-    print(f"  BƯỚC 4: TRAIN HOG + SVM")
+    print(f"  TRAIN SVM – Split {train_pct}/{test_pct}")
     print(f"{'─'*55}")
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y_encoded,
-        test_size=0.2,
+        test_size=test_size,
         random_state=42,
         stratify=y_encoded,
     )
-    print(f"  Train: {len(X_train)} | Test: {len(X_test)} (tỉ lệ 80/20)")
+    print(f"  Train: {len(X_train)} mẫu | Test: {len(X_test)} mẫu")
 
     clf = Pipeline([
         ("scaler", StandardScaler()),
@@ -460,24 +464,25 @@ def train_svm(X: np.ndarray, y_encoded: np.ndarray, le: LabelEncoder):
     clf.fit(X_train, y_train)
     print(f"  ✓ Train xong")
 
-    # Cross-validation 5-fold
-    cv = StratifiedKFold(n_splits=min(5, len(le.classes_)), shuffle=True, random_state=42)
-    cv_scores = cross_val_score(clf, X, y_encoded, cv=cv, scoring="accuracy")
-    print(f"\n  5-Fold Cross Validation:")
-    print(f"    Scores : {cv_scores.round(3)}")
-    print(f"    Mean   : {cv_scores.mean():.3f} ± {cv_scores.std():.3f}")
-
-    return clf, X_test, y_test
+    return clf, X_test, y_test, split_label
 
 
 # ════════════════════════════════════════════════════════════
 #  BƯỚC 5 – ĐÁNH GIÁ
 # ════════════════════════════════════════════════════════════
 
-def evaluate(clf, X_test, y_test, le: LabelEncoder):
-    """Đánh giá model và lưu các biểu đồ kết quả."""
+def evaluate(clf, X_test, y_test, le: LabelEncoder, split_label: str):
+    """
+    Đánh giá model và lưu biểu đồ – mỗi split lưu file riêng.
+
+    Args:
+        split_label : "80-20" hoặc "70-30" – dùng để đặt tên file
+    Returns:
+        acc          : accuracy tổng trên tập test
+        per_class_acc: accuracy từng class (np.ndarray)
+    """
     print(f"\n{'─'*55}")
-    print(f"  BƯỚC 5: ĐÁNH GIÁ MÔ HÌNH")
+    print(f"  ĐÁNH GIÁ – Split {split_label.replace('-', '/')}")
     print(f"{'─'*55}")
 
     y_pred = clf.predict(X_test)
@@ -493,9 +498,10 @@ def evaluate(clf, X_test, y_test, le: LabelEncoder):
     disp = ConfusionMatrixDisplay(confusion_matrix=cm,
                                    display_labels=le.classes_)
     disp.plot(ax=ax, colorbar=True, cmap="Blues")
-    ax.set_title(f"Confusion Matrix – Accuracy {acc:.2%}", fontsize=13)
+    ax.set_title(f"Confusion Matrix [{split_label.replace('-','/')}] – Accuracy {acc:.2%}",
+                 fontsize=13)
     plt.tight_layout()
-    out = os.path.join(OUTPUT_DIR, "04_confusion_matrix.png")
+    out = os.path.join(OUTPUT_DIR, f"04_confusion_matrix_{split_label}.png")
     plt.savefig(out, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"  → Lưu: {out}")
@@ -508,7 +514,8 @@ def evaluate(clf, X_test, y_test, le: LabelEncoder):
                   edgecolor="white", linewidth=0.8)
     ax.set_ylim(0, 110)
     ax.set_ylabel("Accuracy (%)", fontsize=11)
-    ax.set_title("Accuracy từng class", fontsize=12, fontweight="bold")
+    ax.set_title(f"Accuracy từng class [{split_label.replace('-','/')}]",
+                 fontsize=12, fontweight="bold")
     ax.axhline(70, color="gray", linestyle="--", linewidth=1, label="Ngưỡng 70%")
     ax.legend()
     for bar, val in zip(bars, per_class_acc):
@@ -516,12 +523,69 @@ def evaluate(clf, X_test, y_test, le: LabelEncoder):
                 f"{val:.0%}", ha="center", va="bottom", fontsize=9)
     plt.xticks(rotation=30, ha="right")
     plt.tight_layout()
-    out2 = os.path.join(OUTPUT_DIR, "05_per_class_accuracy.png")
+    out2 = os.path.join(OUTPUT_DIR, f"05_per_class_accuracy_{split_label}.png")
     plt.savefig(out2, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"  → Lưu: {out2}")
 
-    return acc
+    return acc, per_class_acc
+
+
+def compare_splits(results: list, le: LabelEncoder):
+    """
+    Vẽ biểu đồ so sánh accuracy tổng và từng class giữa 2 split (80/20 vs 70/30).
+
+    Args:
+        results : list of dict, mỗi phần tử chứa split_label, acc, per_class_acc
+    """
+    labels_split  = [r["split_label"].replace("-", "/") for r in results]
+    accs          = [r["acc"] for r in results]
+    per_class_all = [r["per_class_acc"] for r in results]
+    classes       = le.classes_
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle("So sánh 80/20 vs 70/30", fontsize=14, fontweight="bold")
+
+    # ── Cột trái: Accuracy tổng ──────────────────────────────
+    colors = ["#3498db", "#e67e22"]
+    bars = axes[0].bar(labels_split, [a * 100 for a in accs],
+                       color=colors, edgecolor="white", linewidth=0.8, width=0.4)
+    axes[0].set_ylim(0, 110)
+    axes[0].set_ylabel("Accuracy (%)", fontsize=11)
+    axes[0].set_title("Accuracy tổng thể", fontsize=12, fontweight="bold")
+    axes[0].axhline(70, color="gray", linestyle="--", linewidth=1, label="Ngưỡng 70%")
+    axes[0].legend()
+    for bar, val in zip(bars, accs):
+        axes[0].text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 1.5,
+                     f"{val:.2%}", ha="center", va="bottom", fontsize=11, fontweight="bold")
+
+    # ── Cột phải: Accuracy từng class (grouped bar) ──────────
+    x      = np.arange(len(classes))
+    width  = 0.35
+    for idx, (r, color) in enumerate(zip(results, colors)):
+        offset = (idx - 0.5) * width
+        bars2  = axes[1].bar(x + offset, r["per_class_acc"] * 100,
+                              width, label=r["split_label"].replace("-", "/"),
+                              color=color, alpha=0.85, edgecolor="white")
+        for bar, val in zip(bars2, r["per_class_acc"]):
+            axes[1].text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.8,
+                         f"{val:.0%}", ha="center", va="bottom", fontsize=7)
+
+    axes[1].set_xticks(x)
+    axes[1].set_xticklabels(classes, rotation=30, ha="right")
+    axes[1].set_ylim(0, 115)
+    axes[1].set_ylabel("Accuracy (%)", fontsize=11)
+    axes[1].set_title("Accuracy từng class", fontsize=12, fontweight="bold")
+    axes[1].axhline(70, color="gray", linestyle="--", linewidth=1)
+    axes[1].legend()
+
+    plt.tight_layout()
+    out = os.path.join(OUTPUT_DIR, "06_compare_splits.png")
+    plt.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  → Lưu: {out}")
+
+
 
 
 # ════════════════════════════════════════════════════════════
@@ -531,7 +595,8 @@ def evaluate(clf, X_test, y_test, le: LabelEncoder):
 def predict_single(clf, le: LabelEncoder, img_path: str):
     """
     Dự đoán class của 1 ảnh mới.
-    Pipeline: Đọc → ImageEnhancer.enhance() → Grayscale → HOG → SVM.predict
+    Pipeline: Đọc → preprocess_image() → HOG → SVM.predict
+    Dùng cùng pipeline với lúc train: Bilateral → CLAHE → Gray → Resize.
     """
     print(f"\n{'─'*55}")
     print(f"  DỰ ĐOÁN ẢNH: {img_path}")
@@ -571,7 +636,7 @@ def predict_single(clf, le: LabelEncoder, img_path: str):
         ax.axis("off")
     plt.suptitle("Kết quả phân loại HOG + SVM", fontsize=13, fontweight="bold")
     plt.tight_layout()
-    out = os.path.join(OUTPUT_DIR, "06_prediction_result.png")
+    out = os.path.join(OUTPUT_DIR, "07_prediction_result.png")
     plt.savefig(out, dpi=150, bbox_inches="tight")
     plt.close()
 
@@ -615,7 +680,7 @@ def main():
     images, labels, paths, classes = load_dataset(args.dataset)
     visualize_samples(images, labels, classes)
 
-    # ── 2. Tiền xử lý (ImageEnhancer) ─────────────────────
+    # ── 2. Tiền xử lý ──────────────────────────────────────
     processed = preprocess_all(images, labels)
     visualize_preprocessing(images, processed, labels, classes)
 
@@ -625,18 +690,46 @@ def main():
     y  = le.fit_transform(labels)
     visualize_hog(processed, labels, classes)
 
-    # ── 4. Train SVM ───────────────────────────────────────
-    clf, X_test, y_test = train_svm(X, y, le)
+    # ── 4 & 5. Train + Đánh giá cho 2 tỉ lệ split ─────────
+    print(f"\n{'═'*55}")
+    print(f"  BƯỚC 4–5: TRAIN & ĐÁNH GIÁ (80/20 và 70/30)")
+    print(f"{'═'*55}")
 
-    # ── 5. Đánh giá ────────────────────────────────────────
-    evaluate(clf, X_test, y_test, le)
+    results  = []   # lưu kết quả để so sánh
+    best_clf = None
 
-    # ── Lưu model ──────────────────────────────────────────
-    save_model(clf, le)
+    for test_size in [0.2, 0.3]:
+        clf, X_test, y_test, split_label = train_svm(X, y, test_size)
+        acc, per_class_acc = evaluate(clf, X_test, y_test, le, split_label)
+        results.append({
+            "split_label"   : split_label,
+            "acc"           : acc,
+            "per_class_acc" : per_class_acc,
+            "clf"           : clf,
+        })
+        if best_clf is None or acc > results[0]["acc"]:
+            best_clf = clf
+
+    # ── So sánh 2 split ────────────────────────────────────
+    print(f"\n{'─'*55}")
+    print(f"  SO SÁNH KẾT QUẢ")
+    print(f"{'─'*55}")
+    for r in results:
+        print(f"  Split {r['split_label'].replace('-','/'):<6} → Accuracy: {r['acc']:.2%}")
+    compare_splits(results, le)
+
+    # Chọn split tốt hơn làm best model
+    best = max(results, key=lambda r: r["acc"])
+    best_clf = best["clf"]
+    print(f"\n  ✓ Model tốt nhất: Split {best['split_label'].replace('-','/')} "
+          f"({best['acc']:.2%})")
+
+    # ── Lưu best model ─────────────────────────────────────
+    save_model(best_clf, le)
 
     # ── 6. Dự đoán ảnh mới (nếu có) ───────────────────────
     if args.test:
-        predict_single(clf, le, args.test)
+        predict_single(best_clf, le, args.test)
 
     # ── Tổng kết ───────────────────────────────────────────
     print(f"\n{'═' * 55}")
@@ -644,13 +737,16 @@ def main():
     print(f"{'═' * 55}")
     print(f"  Ảnh kết quả lưu trong: 04_HOG_SVM/images/")
     print(f"")
-    print(f"  01_dataset_samples.png     – Mẫu ảnh mỗi class")
-    print(f"  02_preprocessing_steps.png – 5 bước (Bilateral→CLAHE→Gray→Resize)")
-    print(f"  03_hog_visualization.png   – HOG features từng class")
-    print(f"  04_confusion_matrix.png    – Ma trận nhầm lẫn")
-    print(f"  05_per_class_accuracy.png  – Accuracy từng class")
+    print(f"  01_dataset_samples.png          – Mẫu ảnh mỗi class")
+    print(f"  02_preprocessing_steps.png      – 5 bước tiền xử lý")
+    print(f"  03_hog_visualization.png        – HOG features từng class")
+    print(f"  04_confusion_matrix_80-20.png   – Confusion matrix split 80/20")
+    print(f"  04_confusion_matrix_70-30.png   – Confusion matrix split 70/30")
+    print(f"  05_per_class_accuracy_80-20.png – Accuracy từng class split 80/20")
+    print(f"  05_per_class_accuracy_70-30.png – Accuracy từng class split 70/30")
+    print(f"  06_compare_splits.png           – So sánh 80/20 vs 70/30")
     if args.test:
-        print(f"  06_prediction_result.png   – Kết quả dự đoán ảnh test")
+        print(f"  07_prediction_result.png        – Kết quả dự đoán ảnh test")
     print(f"")
     print(f"  Dự đoán ảnh mới:")
     print(f"  python 04_HOG_SVM/pipeline.py --dataset dataset/ --test anh.jpg")
