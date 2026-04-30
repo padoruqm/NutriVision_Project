@@ -34,6 +34,8 @@ import matplotlib.pyplot as plt
 
 from skimage.feature import hog
 from skimage import exposure
+from joblib import Parallel, delayed
+from tqdm import tqdm   
 
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler, LabelEncoder
@@ -371,19 +373,24 @@ def extract_hog(gray: np.ndarray):
 
 
 def extract_all_features(processed: list):
-    """Trích xuất HOG cho toàn bộ dataset."""
+    """Trích xuất HOG cho toàn bộ dataset (Parallel)."""
     print(f"\n{'─'*55}")
-    print(f"  BƯỚC 3: TRÍCH XUẤT HOG FEATURES")
+    print(f"  BƯỚC 3: TRÍCH XUẤT HOG FEATURES (Parallel n_jobs=-1)")
     print(f"{'─'*55}")
 
-    X = []
-    for gray in processed:
+    def process(gray):
         feat, _ = extract_hog(gray)
-        X.append(feat)
+        return feat
+
+    X = Parallel(n_jobs=-1)(
+        delayed(process)(gray) for gray in tqdm(processed, desc="  Đang extract HOG")
+    )
 
     X = np.array(X)
-    print(f"  Tham số: orient={HOG_ORIENT} | ppc={HOG_PPC} | cpb={HOG_CPB}")
+
+    print(f"\n  Tham số: orient={HOG_ORIENT} | ppc={HOG_PPC} | cpb={HOG_CPB}")
     print(f"  ✓ Feature matrix: {X.shape[0]} mẫu × {X.shape[1]} features")
+
     return X
 
 
