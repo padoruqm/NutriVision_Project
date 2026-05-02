@@ -15,4 +15,17 @@ Thumbs.db
 *.log
 *.tmp
 
+01_color_representation/
+02_preprocessing/
+03_morphology/
+
+train_01/
+*.pkl
+
+train_01_hog+color+svm/
+*.pkl
+
+train_02/
+*.pkl
+
 04_HOG_SVM/model.pkl
