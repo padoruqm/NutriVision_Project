@@ -25,3 +25,9 @@
 cd 02_preprocessing
 python run_preprocessing.py
 ```
+### Bước 2: Segmentation
+
+```bash
+cd 03_morphology
+python run_segmentation.py
+```
