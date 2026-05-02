@@ -7,8 +7,6 @@ class ImageEnhancer:
         # Khởi tạo CLAHE
         self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8, 8))
 
-    import cv2
-
     def resize_reflect_padding(self, img):
         target_w, target_h = self.target_size
         h, w = img.shape[:2]
@@ -43,20 +41,19 @@ class ImageEnhancer:
         return padded_img
     def enhance(self, img_bgr):
         """
-        Pipeline: Resize -> Denoise -> CLAHE 
+        Pipeline: Denoise -> CLAHE -> Resize + Reflect Padding
         """
         if img_bgr is None: return None
 
-        # 1. Resize 
-        img_resized = self.resize_reflect_padding(img_bgr)
-
-        # 2. Denoise bằng Bilateral Filter
-        blurred = cv2.bilateralFilter(img_resized, d=5, sigmaColor=50, sigmaSpace=50)
-        # 3. Contrast Enhancement (CLAHE trên kênh L của Lab để bảo vệ màu sắc)
+        # 1. Denoise bằng Bilateral Filter
+        blurred = cv2.bilateralFilter(img_bgr, d=5, sigmaColor=50, sigmaSpace=50)
+        # 2. Contrast Enhancement (CLAHE trên kênh L của Lab để bảo vệ màu sắc)
         lab = cv2.cvtColor(blurred, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
         l_enhanced = self.clahe.apply(l)
         lab_enhanced = cv2.merge((l_enhanced, a, b))
-        img_enhanced = cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2BGR)
-
-        return img_enhanced
+        img_enhanced = cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2RGB)
+        
+        # 3. Resize và Reflect Padding
+        img_final = self.resize_reflect_padding(img_enhanced)
+        return img_final

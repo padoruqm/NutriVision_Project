@@ -5,6 +5,7 @@ FOOD101_RAW       = DATA_DIR / "food-101"
 FOOD101_SUBSET    = DATA_DIR / "food101_subset"
 FOOD101_PROCESSED = DATA_DIR / "food101_processed"
 FOOD101_CONTOUR = DATA_DIR / "food101_contour"
+FOOD101_SEGMENTATION = DATA_DIR / "food101_segmentation"
 OUTPUTS_DIR = PROJECT_ROOT
 SELECTED_CLASSES = [
     "pizza", "hamburger", "french_fries", "ice_cream", "chocolate_cake",

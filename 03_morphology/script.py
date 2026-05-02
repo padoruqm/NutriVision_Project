@@ -37,8 +37,9 @@ def run_morphology_pipeline():
         img_bgr = cv2.imread(str(img_path))
         if img_bgr is None: continue
 
-        # Áp dụng strategy 'gray_canny'
-        _, binary, contour = segmenter.get_mask(img_bgr, strategy='gray_canny')
+        # Áp dụng strategy 'combine_lab_otsu'
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        _, binary, contour = segmenter.get_mask(img_rgb, strategy='combine_lab_otsu')
 
         # Vẽ contour lên ảnh để lưu kết quả trực quan
         res_img = img_bgr.copy()
@@ -68,7 +69,7 @@ def save_comparison(original_pre, contoured_img, file_name):
     axes[0].axis('off')
 
     axes[1].imshow(cv2.cvtColor(contoured_img, cv2.COLOR_BGR2RGB))
-    axes[1].set_title("2. Gray Canny Contour", fontweight='bold')
+    axes[1].set_title("2. Combined LAB Otsu Contour", fontweight='bold')
     axes[1].axis('off')
 
     plt.tight_layout()
