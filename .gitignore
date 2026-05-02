@@ -15,10 +15,6 @@ Thumbs.db
 *.log
 *.tmp
 
-01_color_representation/
-02_preprocessing/
-03_morphology/
-
 train_01/
 *.pkl
 
