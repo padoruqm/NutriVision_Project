@@ -69,7 +69,7 @@ def demo_normalize(img_path: str | Path) -> None:
 if __name__ == "__main__":
     train_dir = FOOD101_SUBSET
     print("\n Histogram Analysis")
-    compare_classes(["pizza", "ice_cream"])
+    compare_classes(["pizza", "sushi", "ice_cream", "grilled_salmon", "french_fries"])
     print("\n Lab Normalization")
     sample = next((train_dir / "pizza").glob("*.jpg"), None)
     if sample:
