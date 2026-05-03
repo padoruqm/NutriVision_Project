@@ -1,7 +1,7 @@
 ## Pipeline Tổng Thể
 
 1. **Preprocessing**  
-   Denoise (Bilateral Filter) → CLAHE (tăng tương phản) → Resize + Reflect Padding → 224×224  
+   Denoise (Bilateral Filter) → CLAHE (tăng tương phản) → Resize + Reflect Padding 
    → Lưu vào `data/food101_processed`
 
 2. **Morphology**  
