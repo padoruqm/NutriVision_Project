@@ -59,28 +59,23 @@ from sklearn.metrics import (classification_report, confusion_matrix,
                               ConfusionMatrixDisplay, accuracy_score)
 import pickle
 
-# ─── Thư mục lưu ảnh kết quả ─────────────────────────────────
+# Thư mục lưu ảnh kết quả
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "images")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# ─── Tham số cố định ─────────────────────────────────────────
+# Tham số cố định
 IMG_SIZE        = (128, 128)   # Resize tất cả ảnh về kích thước này
 HOG_ORIENT      = 9            # Số bins histogram (0°–180°)
 HOG_PPC         = (8, 8)       # Pixels per cell
 HOG_CPB         = (2, 2)       # Cells per block
 
-# ─── Tham số Color Histogram ─────────────────────────────────
+# Tham số Color Histogram
 COLOR_BINS_H    = 16           # Bins cho kênh Hue   (0–180 trong OpenCV)
 COLOR_BINS_S    = 8            # Bins cho kênh Saturation (0–255)
 COLOR_BINS_V    = 8            # Bins cho kênh Value      (0–255)
 # Tổng: 16+8+8 = 32 bins → feature vector nhỏ gọn, đủ phân biệt màu
 
 SUPPORTED_EXT   = (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp")
-
-
-# ════════════════════════════════════════════════════════════
-#  IMAGE ENHANCER – tích hợp từ 02_preprocessing/preprocessing.py
-# ════════════════════════════════════════════════════════════
 
 class ImageEnhancer:
     """
@@ -151,14 +146,11 @@ class ImageEnhancer:
         return img_enhanced
 
 
-# ── Khởi tạo enhancer dùng chung toàn pipeline ───────────────
+# Khởi tạo enhancer dùng chung toàn pipeline
 enhancer = ImageEnhancer(target_size=IMG_SIZE, clip_limit=1.5)
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 1 – ĐỌC DATASET
-# ════════════════════════════════════════════════════════════
-
 def load_dataset(dataset_path: str):
     """
     Đọc toàn bộ ảnh từ dataset_path.
@@ -241,10 +233,7 @@ def visualize_samples(images, labels, classes, n_per_class=4):
     print(f"  → Lưu: {out}")
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 2 – TIỀN XỬ LÝ  (dùng ImageEnhancer)
-# ════════════════════════════════════════════════════════════
-
 def preprocess_image(bgr: np.ndarray):
     """
     Pipeline tiền xử lý cho HOG + Color Histogram:
@@ -263,13 +252,13 @@ def preprocess_image(bgr: np.ndarray):
         gray_resized        : ảnh grayscale uint8 kích thước IMG_SIZE  (cho HOG)
         enhanced_color_resized : ảnh BGR uint8 kích thước IMG_SIZE     (cho Color Histogram)
     """
-    # ①② Tăng cường trên độ phân giải gốc
+    # Tăng cường trên độ phân giải gốc
     enhanced_bgr = enhancer.enhance(bgr)
 
-    # ③ Resize ảnh màu về IMG_SIZE (dùng cho Color Histogram)
+    # Resize ảnh màu về IMG_SIZE (dùng cho Color Histogram)
     enhanced_color_resized = enhancer.resize_reflect_padding(enhanced_bgr)
 
-    # ④ Grayscale từ ảnh đã resize (đầu vào HOG)
+    # Grayscale từ ảnh đã resize (đầu vào HOG)
     gray_resized = cv2.cvtColor(enhanced_color_resized, cv2.COLOR_BGR2GRAY)
 
     return gray_resized, enhanced_color_resized
@@ -348,10 +337,7 @@ def visualize_preprocessing(images, grays, color_imgs, labels, classes):
     print(f"  → Lưu: {out}")
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 3A – TRÍCH XUẤT HOG FEATURES
-# ════════════════════════════════════════════════════════════
-
 def extract_hog(gray: np.ndarray):
     """
     Trích xuất HOG feature vector từ 1 ảnh grayscale.
@@ -378,10 +364,7 @@ def extract_hog(gray: np.ndarray):
     return features, hog_image
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 3B – TRÍCH XUẤT COLOR HISTOGRAM FEATURES (MỚI)
-# ════════════════════════════════════════════════════════════
-
 def extract_color_histogram(bgr_img: np.ndarray) -> np.ndarray:
     """
     Trích xuất Color Histogram trong không gian HSV.
@@ -419,10 +402,7 @@ def extract_color_histogram(bgr_img: np.ndarray) -> np.ndarray:
     return np.concatenate([hist_h, hist_s, hist_v]).astype(np.float32)
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 3C – KẾT HỢP HOG + COLOR HISTOGRAM
-# ════════════════════════════════════════════════════════════
-
 def extract_combined_features(gray: np.ndarray, color_img: np.ndarray):
     """
     Trích xuất và kết hợp HOG + Color Histogram thành 1 feature vector duy nhất.
@@ -597,10 +577,7 @@ def visualize_feature_composition(n_hog: int, n_color: int):
     print(f"  → Lưu: {out}")
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 4 – TRAIN SVM
-# ════════════════════════════════════════════════════════════
-
 def train_svm(X: np.ndarray, y_encoded: np.ndarray, test_size: float):
     """
     Train SVM với HOG + Color Histogram features.
@@ -645,10 +622,7 @@ def train_svm(X: np.ndarray, y_encoded: np.ndarray, test_size: float):
     return clf, X_test, y_test, split_label
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 5 – ĐÁNH GIÁ
-# ════════════════════════════════════════════════════════════
-
 def evaluate(clf, X_test, y_test, le: LabelEncoder, split_label: str):
     """
     Đánh giá model và lưu biểu đồ – mỗi split lưu file riêng.
@@ -663,7 +637,7 @@ def evaluate(clf, X_test, y_test, le: LabelEncoder, split_label: str):
     print(f"\n  Classification Report:")
     print(classification_report(y_test, y_pred, target_names=le.classes_))
 
-    # ── Confusion matrix ─────────────────────────────────────
+    # Confusion matrix 
     cm  = confusion_matrix(y_test, y_pred)
     fig, ax = plt.subplots(figsize=(max(6, len(le.classes_)),
                                     max(5, len(le.classes_) - 1)))
@@ -678,7 +652,7 @@ def evaluate(clf, X_test, y_test, le: LabelEncoder, split_label: str):
     plt.close()
     print(f"  → Lưu: {out}")
 
-    # ── Biểu đồ accuracy mỗi class ──────────────────────────
+    # Biểu đồ accuracy mỗi class
     per_class_acc = cm.diagonal() / cm.sum(axis=1)
     fig, ax = plt.subplots(figsize=(max(7, len(le.classes_) * 1.2), 4))
     bars = ax.bar(le.classes_, per_class_acc * 100,
@@ -753,10 +727,7 @@ def compare_splits(results: list, le: LabelEncoder):
     print(f"  → Lưu: {out}")
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 6 – DỰ ĐOÁN ẢNH MỚI
-# ════════════════════════════════════════════════════════════
-
 def predict_single(clf, le: LabelEncoder, img_path: str):
     """
     Dự đoán class của 1 ảnh mới.
@@ -827,10 +798,7 @@ def save_model(clf, le, model_path="04_HOG_SVM/model.pkl"):
     print(f"\n  ✓ Đã lưu model: {model_path}")
 
 
-# ════════════════════════════════════════════════════════════
 #  MAIN
-# ════════════════════════════════════════════════════════════
-
 def main():
     parser = argparse.ArgumentParser(
         description="Pipeline HOG + Color Histogram + SVM",
@@ -902,7 +870,7 @@ def main():
 
     # ── Tổng kết ───────────────────────────────────────────
     print(f"\n{'═' * 55}")
-    print(f"  ✅ PIPELINE HOÀN THÀNH")
+    print(f"  PIPELINE HOÀN THÀNH")
     print(f"{'═' * 55}")
     print(f"  Ảnh kết quả lưu trong: 04_HOG_SVM/images/")
     print(f"")

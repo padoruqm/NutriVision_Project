@@ -45,11 +45,11 @@ from sklearn.metrics import (classification_report, confusion_matrix,
                               ConfusionMatrixDisplay, accuracy_score)
 import pickle
 
-# ─── Thư mục lưu ảnh kết quả ─────────────────────────────────
+# Thư mục lưu ảnh kết quả
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "images")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# ─── Tham số cố định ─────────────────────────────────────────
+# Tham số cố định
 IMG_SIZE        = (128, 128)   # Resize tất cả ảnh về kích thước này
 HOG_ORIENT      = 9            # Số bins histogram (0°–180°)
 HOG_PPC         = (8, 8)       # Pixels per cell
@@ -57,10 +57,7 @@ HOG_CPB         = (2, 2)       # Cells per block
 SUPPORTED_EXT   = (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp")
 
 
-# ════════════════════════════════════════════════════════════
 #  IMAGE ENHANCER – tích hợp từ 02_preprocessing/preprocessing.py
-# ════════════════════════════════════════════════════════════
-
 class ImageEnhancer:
     """
     Tích hợp từ 02_preprocessing/preprocessing.py – điều chỉnh thứ tự cho HOG.
@@ -125,10 +122,10 @@ class ImageEnhancer:
         if img_bgr is None:
             return None
 
-        # ① Denoise – Bilateral Filter (trên ảnh gốc, giữ toàn bộ chi tiết)
+        # Denoise – Bilateral Filter (trên ảnh gốc, giữ toàn bộ chi tiết)
         blurred = cv2.bilateralFilter(img_bgr, d=5, sigmaColor=50, sigmaSpace=50)
 
-        # ② CLAHE trên kênh L của LAB
+        # CLAHE trên kênh L của LAB
         lab = cv2.cvtColor(blurred, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
         l_enhanced = self.clahe.apply(l)
@@ -138,14 +135,12 @@ class ImageEnhancer:
         return img_enhanced
 
 
-# ── Khởi tạo enhancer dùng chung toàn pipeline ───────────────
+# Khởi tạo enhancer dùng chung toàn pipeline
 enhancer = ImageEnhancer(target_size=IMG_SIZE, clip_limit=1.5)
 
 
-# ════════════════════════════════════════════════════════════
-#  BƯỚC 1 – ĐỌC DATASET
-# ════════════════════════════════════════════════════════════
 
+#  BƯỚC 1 – ĐỌC DATASET
 def load_dataset(dataset_path: str):
     """
     Đọc toàn bộ ảnh từ dataset_path.
@@ -234,10 +229,7 @@ def visualize_samples(images, labels, classes, n_per_class=4):
     print(f"  → Lưu: {out}")
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 2 – TIỀN XỬ LÝ  (dùng ImageEnhancer)
-# ════════════════════════════════════════════════════════════
-
 def preprocess_image(bgr: np.ndarray) -> np.ndarray:
     """
     Pipeline tiền xử lý – resize là bước CUỐI để phù hợp với HOG:
@@ -253,13 +245,13 @@ def preprocess_image(bgr: np.ndarray) -> np.ndarray:
     Returns:
         gray_resized : ảnh grayscale uint8 kích thước IMG_SIZE
     """
-    # ①② Tăng cường trên độ phân giải gốc
+    # Tăng cường trên độ phân giải gốc
     enhanced_bgr = enhancer.enhance(bgr)
 
-    # ③ Grayscale
+    # Grayscale
     gray = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2GRAY)
 
-    # ④ Resize + reflect padding – bước cuối, chuẩn hoá kích thước cho HOG
+    # Resize + reflect padding – bước cuối, chuẩn hoá kích thước cho HOG
     gray_resized = enhancer.resize_reflect_padding(gray)
 
     return gray_resized
@@ -293,11 +285,11 @@ def visualize_preprocessing(images, processed, labels, classes):
         axes = [axes]
 
     col_titles = [
-        "① Gốc (BGR)",
-        "② Bilateral Filter",
-        "③ CLAHE (L-channel)",
-        "④ Grayscale",
-        "⑤ Resize+Padding → HOG",
+        "Gốc (BGR)",
+        "Bilateral Filter",
+        "CLAHE (L-channel)",
+        "Grayscale",
+        "Resize+Padding → HOG",
     ]
     for j, t in enumerate(col_titles):
         axes[0][j].set_title(t, fontsize=9, fontweight="bold")
@@ -306,19 +298,19 @@ def visualize_preprocessing(images, processed, labels, classes):
         idx  = next(k for k, lbl in enumerate(labels) if lbl == cls)
         orig = images[idx]
 
-        # ① → ② Bilateral trên ảnh gốc
+        # Bilateral trên ảnh gốc
         step2 = cv2.bilateralFilter(orig, d=5, sigmaColor=50, sigmaSpace=50)
 
-        # ② → ③ CLAHE trên kênh L (vẫn ở kích thước gốc)
+        # CLAHE trên kênh L (vẫn ở kích thước gốc)
         lab = cv2.cvtColor(step2, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
         l_enh = enhancer.clahe.apply(l)
         step3 = cv2.cvtColor(cv2.merge((l_enh, a, b)), cv2.COLOR_LAB2BGR)
 
-        # ③ → ④ Grayscale (trước khi resize)
+        # Grayscale (trước khi resize)
         step4 = cv2.cvtColor(step3, cv2.COLOR_BGR2GRAY)
 
-        # ④ → ⑤ Resize + reflect padding – bước cuối
+        # Resize + reflect padding – bước cuối
         step5 = processed[idx]   # đã tính sẵn trong preprocess_image()
 
         axes[i][0].imshow(cv2.cvtColor(orig,  cv2.COLOR_BGR2RGB))
@@ -342,10 +334,7 @@ def visualize_preprocessing(images, processed, labels, classes):
     print(f"  → Lưu: {out}")
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 3 – TRÍCH XUẤT HOG FEATURES
-# ════════════════════════════════════════════════════════════
-
 def extract_hog(gray: np.ndarray):
     """
     Trích xuất HOG feature vector từ 1 ảnh grayscale.
@@ -425,10 +414,7 @@ def visualize_hog(processed, labels, classes):
     print(f"  → Lưu: {out}")
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 4 – TRAIN SVM
-# ════════════════════════════════════════════════════════════
-
 def train_svm(X: np.ndarray, y_encoded: np.ndarray, test_size: float):
     """
     Train SVM với HOG features cho 1 tỉ lệ split cụ thể.
@@ -474,10 +460,7 @@ def train_svm(X: np.ndarray, y_encoded: np.ndarray, test_size: float):
     return clf, X_test, y_test, split_label
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 5 – ĐÁNH GIÁ
-# ════════════════════════════════════════════════════════════
-
 def evaluate(clf, X_test, y_test, le: LabelEncoder, split_label: str):
     """
     Đánh giá model và lưu biểu đồ – mỗi split lưu file riêng.
@@ -498,7 +481,7 @@ def evaluate(clf, X_test, y_test, le: LabelEncoder, split_label: str):
     print(f"\n  Classification Report:")
     print(classification_report(y_test, y_pred, target_names=le.classes_))
 
-    # ── Confusion matrix ─────────────────────────────────────
+    # Confusion matrix
     cm  = confusion_matrix(y_test, y_pred)
     fig, ax = plt.subplots(figsize=(max(6, len(le.classes_)),
                                     max(5, len(le.classes_) - 1)))
@@ -513,7 +496,7 @@ def evaluate(clf, X_test, y_test, le: LabelEncoder, split_label: str):
     plt.close()
     print(f"  → Lưu: {out}")
 
-    # ── Biểu đồ accuracy mỗi class ──────────────────────────
+    # Biểu đồ accuracy mỗi class
     per_class_acc = cm.diagonal() / cm.sum(axis=1)
     fig, ax = plt.subplots(figsize=(max(7, len(le.classes_) * 1.2), 4))
     bars = ax.bar(le.classes_, per_class_acc * 100,
@@ -553,7 +536,7 @@ def compare_splits(results: list, le: LabelEncoder):
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     fig.suptitle("So sánh 80/20 vs 70/30", fontsize=14, fontweight="bold")
 
-    # ── Cột trái: Accuracy tổng ──────────────────────────────
+    # Cột trái: Accuracy tổng
     colors = ["#3498db", "#e67e22"]
     bars = axes[0].bar(labels_split, [a * 100 for a in accs],
                        color=colors, edgecolor="white", linewidth=0.8, width=0.4)
@@ -566,7 +549,7 @@ def compare_splits(results: list, le: LabelEncoder):
         axes[0].text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 1.5,
                      f"{val:.2%}", ha="center", va="bottom", fontsize=11, fontweight="bold")
 
-    # ── Cột phải: Accuracy từng class (grouped bar) ──────────
+    # Cột phải: Accuracy từng class (grouped bar)
     x      = np.arange(len(classes))
     width  = 0.35
     for idx, (r, color) in enumerate(zip(results, colors)):
@@ -595,10 +578,7 @@ def compare_splits(results: list, le: LabelEncoder):
 
 
 
-# ════════════════════════════════════════════════════════════
 #  BƯỚC 6 – DỰ ĐOÁN ẢNH MỚI
-# ════════════════════════════════════════════════════════════
-
 def predict_single(clf, le: LabelEncoder, img_path: str):
     """
     Dự đoán class của 1 ảnh mới.
@@ -661,10 +641,7 @@ def save_model(clf, le, model_path="04_HOG_SVM/model.pkl"):
     print(f"\n  ✓ Đã lưu model: {model_path}")
 
 
-# ════════════════════════════════════════════════════════════
 #  MAIN
-# ════════════════════════════════════════════════════════════
-
 def main():
     parser = argparse.ArgumentParser(
         description="Pipeline HOG + SVM – tích hợp ImageEnhancer",
@@ -683,21 +660,21 @@ def main():
     print("   Tiền xử lý: Bilateral → CLAHE-LAB → Grayscale → Resize (cuối)")
     print("═" * 55)
 
-    # ── 1. Đọc dataset ─────────────────────────────────────
+    # 1. Đọc dataset
     images, labels, paths, classes = load_dataset(args.dataset)
     visualize_samples(images, labels, classes)
 
-    # ── 2. Tiền xử lý ──────────────────────────────────────
+    # 2. Tiền xử lý
     processed = preprocess_all(images, labels)
     visualize_preprocessing(images, processed, labels, classes)
 
-    # ── 3. HOG features ────────────────────────────────────
+    # 3. HOG features 
     X  = extract_all_features(processed)
     le = LabelEncoder()
     y  = le.fit_transform(labels)
     visualize_hog(processed, labels, classes)
 
-    # ── 4 & 5. Train + Đánh giá cho 2 tỉ lệ split ─────────
+    # 4 & 5. Train + Đánh giá cho 2 tỉ lệ split
     print(f"\n{'═'*55}")
     print(f"  BƯỚC 4–5: TRAIN & ĐÁNH GIÁ (80/20 và 70/30)")
     print(f"{'═'*55}")
@@ -717,7 +694,7 @@ def main():
         if best_clf is None or acc > results[0]["acc"]:
             best_clf = clf
 
-    # ── So sánh 2 split ────────────────────────────────────
+    # So sánh 2 split
     print(f"\n{'─'*55}")
     print(f"  SO SÁNH KẾT QUẢ")
     print(f"{'─'*55}")
@@ -731,16 +708,16 @@ def main():
     print(f"\n  ✓ Model tốt nhất: Split {best['split_label'].replace('-','/')} "
           f"({best['acc']:.2%})")
 
-    # ── Lưu best model ─────────────────────────────────────
+    # Lưu best model
     save_model(best_clf, le)
 
-    # ── 6. Dự đoán ảnh mới (nếu có) ───────────────────────
+    # 6. Dự đoán ảnh mới (nếu có)
     if args.test:
         predict_single(best_clf, le, args.test)
 
-    # ── Tổng kết ───────────────────────────────────────────
+    # Tổng kết
     print(f"\n{'═' * 55}")
-    print(f"  ✅ PIPELINE HOÀN THÀNH")
+    print(f"  PIPELINE HOÀN THÀNH")
     print(f"{'═' * 55}")
     print(f"  Ảnh kết quả lưu trong: 04_HOG_SVM/images/")
     print(f"")
