@@ -4,6 +4,9 @@ utils/image_utils.py
 Hàm tiện ích dùng chung cho toàn bộ project.
 """
 import cv2, numpy as np, matplotlib.pyplot as plt, os
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 def load_or_create(path, size=(300,400)):
     """Đọc ảnh BGR. Nếu không có → tạo ảnh mẫu."""

@@ -17,13 +17,13 @@ Chạy: python 04_segmentation_detection/detection/hog_features.py
 """
 
 import sys, os
-sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage.feature import hog
 from skimage import exposure
-from utils.image_utils import load_or_create
+from src.image_utils import load_or_create
 
 
 # ─────────────────────────────────────────────────────────────
@@ -242,7 +242,8 @@ def parameter_study(img: np.ndarray, save_dir="images"):
 
 
 if __name__ == "__main__":
-    img = load_or_create("../../samples/test.jpg")
+    sample_path = os.path.join(os.path.dirname(__file__), "..", "02_preprocessing", "images", "preprocessing_steps.png")
+    img = load_or_create(sample_path)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     print("=== HOG: BƯỚC 1 – GRADIENT ===")
