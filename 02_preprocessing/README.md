@@ -53,6 +53,6 @@ img = cv2.imread(str(sample_img_path))
 
 Mỗi bức ảnh sẽ đi qua các bộ lọc sau:
 
-1.  **Resize & Padding:** Chuẩn hóa về 224x224 (không méo).
-2.  **Bilateral Filter:** Khử nhiễu nhưng vẫn giữ sắc nét các đường biên (edge-preserving).
-3.  **CLAHE (Contrast Limited Adaptive Histogram Equalization):** Tự động cân bằng độ sáng và tăng độ tương phản cục bộ, giúp làm nổi bật các chi tiết bề mặt thực phẩm.
+1.  **Bilateral Filter:** Khử nhiễu nhưng vẫn giữ sắc nét các đường biên (edge-preserving).
+2.  **CLAHE (Contrast Limited Adaptive Histogram Equalization):** Tự động cân bằng độ sáng và tăng độ tương phản cục bộ, giúp làm nổi bật các chi tiết bề mặt thực phẩm.
+3.  **Resize & Padding** 
